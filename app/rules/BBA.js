@@ -25,6 +25,9 @@ function BBAClass() {
     let uper_reservoir = 0
     let cushion = 0;
 
+    function getBytesLength(request) {
+        return request.trace.reduce((a, b) => a + b.b[0], 0);
+    }
     function getMaxIndex(rulesContext) {
         // here you can get some informations aboit metrics for example, to implement the rule
         let metricsModel = MetricsModel(context).getInstance();
@@ -55,16 +58,48 @@ function BBAClass() {
         Rmax = bandwidths[count - 1];
         currentBufferLevel = dashMetrics.getCurrentBufferLevel(metrics)
         console.log('Debug: ' + mediaType,' Buffer len', currentBufferLevel)
+
+        // Get last valid request
+        var i = requests.length - 1;
+        while (i >= 0 && lastRequest === null) {
+            currentRequest = requests[i];
+            if (currentRequest._tfinish &&
+                currentRequest.trequest &&
+                currentRequest.tresponse &&
+                currentRequest.trace &&
+                currentRequest.trace.length > 0) {
+                lastRequest = requests[i];
+            }
+            i--;
+        }
+
+        if (lastRequest === null) return SwitchRequest(context).create();
+        //this is the last total request time
+        var totalTime = (lastRequest._tfinish.getTime() - lastRequest.trequest.getTime()) / 1000;
+        var downloadTime = (lastRequest._tfinish.getTime() - lastRequest.tresponse.getTime()) / 1000;
+        if (totalTime <= 0) return SwitchRequest(context).create();
+        var totalBytesLength = getBytesLength(lastRequest);
+        totalBytesLength *= 8;
+        var totalbandwidth = totalBytesLength / totalTime;
+        calculatedBandwidth = 0;
+        var kf = kf_video;
+        if (mediaType == 'audio') {
+            kf = kf_audio;
+        }
+        var calculatedBandwidth = kf.update(totalbandwidth);
+        console.log('Debug: ' + mediaType + ' kf estimated bandwidth:' + calculatedBandwidth / 1000 +  ' bps');
+        console.log('Debug: ' + mediaType + ' last chunk bandwidth:' + totalbandwidth / 1000 + ' bps');
+
         if (currentBufferLevel < reservoir) {
             console.log('Debug: requesting minimal rate');
             return SwitchRequest(context).create(0, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
         }
         else {
             //let desire_bandwidth = (Rmax - Rmin)/ cushion * (currentBufferLevel - reservoir) + Rmin;
-            let desire_bandwidth = (currentBufferLevel - reservoir + 1) * Rmin;
+            let desire_bandwidth = Math.max((currentBufferLevel - reservoir + 1) * Rmin, Rmin);
             console.log('Debug: ' + mediaType + ' desire_bandwidth ' + desire_bandwidth/1000 + 'kbps');
             for (let i = count - 1; i >= 0; i--) {
-                if (bandwidths[i] < desire_bandwidth) {
+                if (bandwidths[i] <= desire_bandwidth) {
                     console.log('Debug: ' + mediaType + ' requesting ' + i + ' with bandwidth ' + bandwidths[i]/1000 + 'kbps');
                     console.log('Debug: ' + mediaType + ' next level of bandwidth ' + bandwidths[Math.max(i+1,count-1)]/1000 + 'kbps');
                     return SwitchRequest(context).create(i, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
@@ -82,4 +117,3 @@ function BBAClass() {
 
 BBAClass.__dashjs_factory_name = 'BBA';
 BBA = dashjs.FactoryMaker.getClassFactory(BBAClass);
-
