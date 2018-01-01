@@ -38,7 +38,7 @@ app.controller('DashController', function ($scope, sources, contributors, dashif
 
 
     $scope.selectedItem = {
-        url: "https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd"
+        url: "https://dash.jas0n1ee.me:8443/akamai/bbb_30fps/bbb_30fps.mpd"
         //url: "http://166.111.138.156/akamai/bbb_30fps/bbb_30fps.mpd"
     };
 
@@ -512,14 +512,16 @@ app.controller('DashController', function ($scope, sources, contributors, dashif
         if ($scope.customABRRulesSelected) {
             console.log('on custonABR');
             $scope.player.useDefaultABRRules(false);
-            $scope.player.addABRCustomRule('qualitySwitchRules', 'SimpleRule', SimpleRule);
+            //$scope.player.addABRCustomRule('qualitySwitchRules', 'SimpleRule', SimpleRule);
             //$scope.player.addABRCustomRule('qualitySwitchRules', 'KalmanRule', KalmanRule);
+            $scope.player.addABRCustomRule('qualitySwitchRules', 'BBA', BBA);
             //$scope.player.addABRCustomRule('qualitySwitchRules', 'DownloadRatioRule', DownloadRatioRule);
             //$scope.player.addABRCustomRule('qualitySwitchRules', 'ThroughputRule', CustomThroughputRule);
         } else {
             $scope.player.useDefaultABRRules(true);
-            $scope.player.removeABRCustomRule('SimpleRule');
+            //$scope.player.removeABRCustomRule('SimpleRule');
             //$scope.player.removeABRCustomRule('KalmanRule');
+            $scope.player.removeABRCustomRule('BBA');
             //$scope.player.removeABRCustomRule('DownloadRatioRule');
             //$scope.player.removeABRCustomRule('ThroughputRule');
         }
@@ -552,16 +554,18 @@ app.controller('DashController', function ($scope, sources, contributors, dashif
         if ($scope.customABRRulesSelected) {
             console.log('on custonABR');
             $scope.player.useDefaultABRRules(false);
-            $scope.player.addABRCustomRule('qualitySwitchRules', 'SimpleRule', SimpleRule);
+            //$scope.player.addABRCustomRule('qualitySwitchRules', 'SimpleRule', SimpleRule);
+            //$scope.player.addABRCustomRule('qualitySwitchRules', 'KalmanRule', KalmanRule);
+            $scope.player.addABRCustomRule('qualitySwitchRules', 'BBA', BBA);
             /*
-            $scope.player.addABRCustomRule('qualitySwitchRules', 'KalmanRule', KalmanRule);
             $scope.player.addABRCustomRule('qualitySwitchRules', 'DownloadRatioRule', DownloadRatioRule);
             */
         } else {
             $scope.player.useDefaultABRRules(true);
-            $scope.player.removeABRCustomRule('SimpleRule');
+            //$scope.player.removeABRCustomRule('SimpleRule');
+            //$scope.player.removeABRCustomRule('KalmanRule');
+            $scope.player.removeABRCustomRule('BBA');
             /*
-            $scope.player.removeABRCustomRule('KalmanRule');
             $scope.player.removeABRCustomRule('DownloadRatioRule');
             */
         }
