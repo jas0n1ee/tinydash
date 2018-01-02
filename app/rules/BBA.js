@@ -87,8 +87,17 @@ function BBAClass() {
             kf = kf_audio;
         }
         var calculatedBandwidth = kf.update(totalbandwidth);
-        console.log('Debug: ' + mediaType + ' kf estimated bandwidth:' + calculatedBandwidth / 1000 +  ' bps');
-        console.log('Debug: ' + mediaType + ' last chunk bandwidth:' + totalbandwidth / 1000 + ' bps');
+        console.log('Debug: ' + mediaType + ' kf estimated bandwidth:' + calculatedBandwidth / 1000 +  ' kbps');
+        console.log('Debug: ' + mediaType + ' last chunk bandwidth:' + totalbandwidth / 1000 + ' kbps');
+        if( calculatedBandwidth >= Rmin * cushion  && totalbandwidth >= Rmin * cushion) {
+            for (let i = count - 1; i >= 0; i--) {
+                if (bandwidths[i] < calculatedBandwidth / cushion) {
+                    Rmin = bandwidths[i];
+                    console.log('Debug ' + mediaType + 'switch Rmin to ' + Rmin / 1000 + ' kbps');
+                    break
+                }
+            }
+        }
 
         if (currentBufferLevel < reservoir) {
             console.log('Debug: requesting minimal rate');
