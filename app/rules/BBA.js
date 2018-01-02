@@ -48,7 +48,6 @@ function BBAClass() {
         }
         let target_buffer = metrics.BufferState[metrics.BufferState.length-1].target;
         reservoir = Math.max(5, Math.floor(target_buffer/4));
-        console.log('Debug: ' + mediaType +  ' system target buffer ' + target_buffer)
         cushion = target_buffer - reservoir - uper_reservoir;
         for (let i = 0; i < count; i++) {
             bandwidths.push(rulesContext.getMediaInfo().bitrateList[i].bandwidth);
@@ -57,7 +56,7 @@ function BBAClass() {
         Rmin = bandwidths[0];
         Rmax = bandwidths[count - 1];
         currentBufferLevel = dashMetrics.getCurrentBufferLevel(metrics)
-        console.log('Debug: ' + mediaType,' Buffer len', currentBufferLevel)
+        console.log('Debug: ' + mediaType,' Buffer current/target len', currentBufferLevel + '/' + target_buffer)
 
         // Get last valid request
         var i = requests.length - 1;
@@ -80,15 +79,14 @@ function BBAClass() {
         if (totalTime <= 0) return SwitchRequest(context).create();
         var totalBytesLength = getBytesLength(lastRequest);
         totalBytesLength *= 8;
-        var totalbandwidth = totalBytesLength / totalTime;
+        var totalbandwidth = Math.floor(totalBytesLength / totalTime);
         calculatedBandwidth = 0;
         var kf = kf_video;
         if (mediaType == 'audio') {
             kf = kf_audio;
         }
-        var calculatedBandwidth = kf.update(totalbandwidth);
-        console.log('Debug: ' + mediaType + ' kf estimated bandwidth:' + calculatedBandwidth / 1000 +  ' kbps');
-        console.log('Debug: ' + mediaType + ' last chunk bandwidth:' + totalbandwidth / 1000 + ' kbps');
+        var calculatedBandwidth = Math.floor(kf.update(totalbandwidth));
+        console.log('Debug: ' + mediaType + ' kf estimated / last chunk bandwidth:' + calculatedBandwidth / 1000 + '/' + totalbandwidth / 1000+  ' kbps');
         if( calculatedBandwidth >= Rmin * cushion  && totalbandwidth >= Rmin * cushion) {
             for (let i = count - 1; i >= 0; i--) {
                 if (bandwidths[i] < calculatedBandwidth / cushion) {
@@ -106,11 +104,9 @@ function BBAClass() {
         else {
             //let desire_bandwidth = (Rmax - Rmin)/ cushion * (currentBufferLevel - reservoir) + Rmin;
             let desire_bandwidth = Math.max((currentBufferLevel - reservoir + 1) * Rmin, Rmin);
-            console.log('Debug: ' + mediaType + ' desire_bandwidth ' + desire_bandwidth/1000 + 'kbps');
             for (let i = count - 1; i >= 0; i--) {
                 if (bandwidths[i] <= desire_bandwidth) {
-                    console.log('Debug: ' + mediaType + ' requesting ' + i + ' with bandwidth ' + bandwidths[i]/1000 + 'kbps');
-                    console.log('Debug: ' + mediaType + ' next level of bandwidth ' + bandwidths[Math.max(i+1,count-1)]/1000 + 'kbps');
+                    console.log('Debug: ' + mediaType + ' desire / requesting / next level bandwidth ' + desire_bandwidth/1000 + '/' + bandwidths[i]/1000 + '/' + bandwidths[Math.min(i+1,count-1)]/1000 + 'kbps');
                     return SwitchRequest(context).create(i, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
                     break; 
                 }
