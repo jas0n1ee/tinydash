@@ -18,6 +18,7 @@ function BBAClass() {
     var mnoise = 3;
     let kf_video = new KalmanFilter(rate, pnoise, mnoise);
     let kf_audio = new KalmanFilter(rate, pnoise, mnoise);
+    let kf_video_buffer = new KalmanFilter(rate, pnoise, mnoise);
 
     let Rmin = 0;
     let Rmax = 0;
@@ -47,13 +48,16 @@ function BBAClass() {
             return SwitchRequest(context).create();
         }
         let target_buffer = metrics.BufferState[metrics.BufferState.length-1].target;
-        reservoir = Math.max(5, Math.floor(target_buffer/4));
+        if (mediaType == 'video') {
+            kf_video_buffer.update(target_buffer);
+        }
+        reservoir = Math.max(5, Math.floor(Math.min(kf_video_buffer.update(target_buffer),target_buffer)/4));
         cushion = target_buffer - reservoir - uper_reservoir;
         for (let i = 0; i < count; i++) {
             bandwidths.push(rulesContext.getMediaInfo().bitrateList[i].bandwidth);
         }
 
-        Rmin = bandwidths[0];
+//        Rmin = bandwidths[0];
         Rmax = bandwidths[count - 1];
         currentBufferLevel = dashMetrics.getCurrentBufferLevel(metrics)
         console.log('Debug: ' + mediaType,' Buffer current/target len', currentBufferLevel + '/' + target_buffer)
@@ -85,11 +89,14 @@ function BBAClass() {
         if (mediaType == 'audio') {
             kf = kf_audio;
         }
+        for (let j = 0; j < 2; j++) 
+            kf.update(totalbandwidth)
         var calculatedBandwidth = Math.floor(kf.update(totalbandwidth));
-        console.log('Debug: ' + mediaType + ' kf estimated / last chunk bandwidth:' + calculatedBandwidth / 1000 + '/' + totalbandwidth / 1000+  ' kbps');
+        console.log('Debug: ' + mediaType + ' Rmin / kf estimated / last chunk bandwidth:' + Rmin/1000 + '/' + calculatedBandwidth / 1000 + '/' + totalbandwidth / 1000+  ' kbps');
         if( calculatedBandwidth >= Rmin * cushion  && totalbandwidth >= Rmin * cushion) {
-            for (let i = count - 1; i >= 0; i--) {
-                if (bandwidths[i] < calculatedBandwidth / cushion) {
+            for (let i = 0; i < count ; i++) {
+                //if (bandwidths[i] < Math.min(calculatedBandwidth,totalbandwidth) / cushion && bandwidths[i] > Rmin) {
+                if (bandwidths[i] > Rmin) {
                     Rmin = bandwidths[i];
                     console.log('Debug ' + mediaType + 'switch Rmin to ' + Rmin / 1000 + ' kbps');
                     break
@@ -99,11 +106,13 @@ function BBAClass() {
 
         if (currentBufferLevel < reservoir) {
             console.log('Debug: requesting minimal rate');
+            if (mediaType == 'video')
+                Rmin = bandwidths[0];
             return SwitchRequest(context).create(0, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
         }
         else {
             //let desire_bandwidth = (Rmax - Rmin)/ cushion * (currentBufferLevel - reservoir) + Rmin;
-            let desire_bandwidth = Math.max((currentBufferLevel - reservoir + 1) * Rmin, Rmin);
+            let desire_bandwidth = Math.floor(Math.max((currentBufferLevel - reservoir + 1) * Rmin, Rmin));
             for (let i = count - 1; i >= 0; i--) {
                 if (bandwidths[i] <= desire_bandwidth) {
                     console.log('Debug: ' + mediaType + ' desire / requesting / next level bandwidth ' + desire_bandwidth/1000 + '/' + bandwidths[i]/1000 + '/' + bandwidths[Math.min(i+1,count-1)]/1000 + 'kbps');
