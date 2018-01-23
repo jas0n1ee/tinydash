@@ -26,6 +26,10 @@ function BBAClass() {
     let uper_reservoir = 0
     let cushion = 0;
 
+    var quality = 0;
+    var lastRate = 0;
+    var curRate = 0;
+
     function getBytesLength(request) {
         return request.trace.reduce((a, b) => a + b.b[0], 0);
     }
@@ -76,6 +80,18 @@ function BBAClass() {
             i--;
         }
 
+        var trequest_h = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[0]);
+        var tfinish_h = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[0]); 
+        var trequest_min = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[1]);
+        var tfinish_min = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[1]); 
+        var trequest_sec = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[2]);
+        var tfinish_sec = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[2]); 
+        var request_time = 3600 * (tfinish_h - trequest_h) + 60 * (tfinish_min - trequest_min) + (tfinish_sec - trequest_sec);
+        console.log('Debug: request time: ', request_time);
+        if (currentBufferLevel == 0) {
+            quality = quality - 4.3 * request_time;
+        }
+
         if (lastRequest === null) return SwitchRequest(context).create();
         //this is the last total request time
         var totalTime = (lastRequest._tfinish.getTime() - lastRequest.trequest.getTime()) / 1000;
@@ -108,6 +124,11 @@ function BBAClass() {
             console.log('Debug: requesting minimal rate');
             if (mediaType == 'video')
                 Rmin = bandwidths[0];
+            lastRate = curRate;
+            curRate = Rmin / 1000;
+            quality = quality + curRate - Math.abs(curRate - lastRate);
+            console.log('Debug: lastRate / curRate: ' + lastRate + ' / ' + curRate);
+            console.log('Debug: quality: ' + quality);
             return SwitchRequest(context).create(0, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
         }
         else {
@@ -115,6 +136,11 @@ function BBAClass() {
             let desire_bandwidth = Math.floor(Math.max((currentBufferLevel - reservoir + 1) * Rmin, Rmin));
             for (let i = count - 1; i >= 0; i--) {
                 if (bandwidths[i] <= desire_bandwidth) {
+                    lastRate = curRate;
+                    curRate = bandwidths[i] / 1000;
+                    quality = quality + curRate - Math.abs(curRate - lastRate);
+                    console.log('Debug: lastRate / curRate: ' + lastRate + ' / ' + curRate);
+                    console.log('Debug: quality: ' + quality);
                     console.log('Debug: ' + mediaType + ' desire / requesting / next level bandwidth ' + desire_bandwidth/1000 + '/' + bandwidths[i]/1000 + '/' + bandwidths[Math.min(i+1,count-1)]/1000 + 'kbps');
                     return SwitchRequest(context).create(i, BBAClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
                     break; 
