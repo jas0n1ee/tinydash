@@ -20,6 +20,9 @@ function KalmanRuleClass() {
     var mnoise = 3;
     let kf_video = new KalmanFilter(rate, pnoise, mnoise);
     let kf_audio = new KalmanFilter(rate, pnoise, mnoise);
+    var quality = 0;
+    var lastRate = 0;
+    var curRate = 0;
 
     function getBytesLength(request) {
         return request.trace.reduce((a, b) => a + b.b[0], 0);
@@ -73,10 +76,14 @@ function KalmanRuleClass() {
         var mediaType = rulesContext.getMediaInfo().type;
         var metrics = metricsModel.getReadOnlyMetricsFor(mediaType);
         var requests = dashMetrics.getHttpRequests(metrics);
-        _kalman = new asdasdasd(rulesContext)
+//        _kalman = new asdasdasd(rulesContext)
         var lastRequest = null;
         var currentRequest = null;
-
+        var bandwidths = [];
+        var count = rulesContext.getMediaInfo().representationCount;
+        for (i = 0; i < count; i += 1) {
+            bandwidths.push(rulesContext.getMediaInfo().bitrateList[i].bandwidth);
+        }
         if (!metrics) {
             return SwitchRequest(context).create();
         }
@@ -112,8 +119,33 @@ function KalmanRuleClass() {
         var calculatedBandwidth = kf.update(totalbandwidth);
         console.log('estimated bandwidth:[', mediaType, ']', calculatedBandwidth / 1024, 'bps');
         if (isNaN(calculatedBandwidth)) return SwitchRequest(context).create();
-
+// QoE
+        var trequest_h = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[0]);
+        var tfinish_h = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[0]);
+        var trequest_min = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[1]);
+        var tfinish_min = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[1]);
+        var trequest_sec = parseInt(String(currentRequest.trequest).split(' ')[4].split(':')[2]);
+        var tfinish_sec = parseInt(String(currentRequest._tfinish).split(' ')[4].split(':')[2]);
+        var request_time = 3600 * (tfinish_h - trequest_h) + 60 * (tfinish_min - trequest_min) + (tfinish_sec - trequest_sec);
+        var currentBufferLevel = dashMetrics.getCurrentBufferLevel(metrics);
         var ret = chooseBestbandwidth(rulesContext, calculatedBandwidth);
+        if (mediaType == 'video') {
+            lastRate = curRate;
+            curRate = bandwidths[ret.q] / 1000;
+            quality = quality + curRate - Math.abs(curRate - lastRate);
+            if(currentBufferLevel == 0) { 
+                quality = quality - 4.3 * request_time;
+            }
+            console.log('Debug: lastRate / curRate: ' + lastRate + ' / ' + curRate);
+            console.log('Debug: quality: ' + quality);
+        }
+
+        console.log('Debug: request time: ', request_time);
+        if (currentBufferLevel == 0) {
+            quality = quality - 4.3 * request_time;
+        }
+
+
         //next chunk index,next rule class,priority level
         //return SwitchRequest(context).create(1, KalmanRuleClass.__dashjs_factory_name, SwitchRequest.PRIORITY.STRONG);
         return SwitchRequest(context).create(ret.q, KalmanRuleClass.__dashjs_factory_name, ret.p);
